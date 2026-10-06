@@ -1,0 +1,227 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>GroundedMind — Prototype</title>
+  <script src="https://cdn.tailwindcss.com"></script>
+</head>
+<body class="bg-slate-950 text-slate-100 min-h-screen flex flex-col items-center p-4 sm:p-8 font-sans">
+
+  <main class="max-w-2xl w-full flex flex-col gap-6">
+    <!-- Header -->
+    <header class="flex justify-between items-center border-b border-slate-800 pb-4">
+      <div>
+        <h1 class="text-2xl font-bold tracking-tight text-emerald-400">GroundedMind</h1>
+        <p class="text-xs text-slate-400">Interactive Sensory Grounding & Generative AI Hub</p>
+      </div>
+      <!-- Web Audio Sound Control -->
+      <button id="audioToggleBtn" onclick="toggleSoundscape()" 
+        class="flex items-center gap-2 bg-slate-900 border border-slate-700 hover:border-emerald-500 px-3 py-1.5 rounded-full text-xs font-medium transition">
+        <span id="audioIndicator" class="w-2 h-2 rounded-full bg-slate-500"></span>
+        <span id="audioLabel">Ambient Noise: OFF</span>
+      </button>
+    </header>
+
+    <!-- Canvas Breathing Visualizer -->
+    <section class="bg-slate-900/60 border border-slate-800 rounded-2xl p-4 flex flex-col items-center">
+      <div class="flex justify-between w-full text-xs text-slate-400 mb-2 px-2">
+        <span class="font-medium text-emerald-400 uppercase tracking-wider">Canvas Breathing Guide</span>
+        <span id="breathPhaseText" class="tracking-widest uppercase">Inhale...</span>
+      </div>
+      <canvas id="breathCanvas" width="300" height="200" class="w-full max-w-[300px] h-[200px]"></canvas>
+    </section>
+
+    <!-- Smart AI Buttons -->
+    <section>
+      <div class="flex items-center justify-between mb-2">
+        <h2 class="text-xs uppercase tracking-wider text-slate-400 font-semibold">Smart AI Quick-Action Menus</h2>
+        <span class="text-[11px] text-emerald-400/80">One-click grounding</span>
+      </div>
+      <div class="grid grid-cols-1 sm:grid-cols-3 gap-2">
+        <button onclick="triggerQuickAction('Guide me through an immediate 5-4-3-2-1 sensory grounding exercise right now.')"
+          class="bg-slate-900 border border-slate-800 hover:border-emerald-500 hover:bg-slate-800 p-3 rounded-xl text-left transition group">
+          <p class="text-xs font-semibold text-slate-200 group-hover:text-emerald-400">⚡ 5-4-3-2-1 Reset</p>
+          <p class="text-[11px] text-slate-500 mt-0.5">Physical sensory focus</p>
+        </button>
+
+        <button onclick="triggerQuickAction('Give me a brief, calming 2-minute visualization of walking through a quiet, damp pine forest in the rain.')"
+          class="bg-slate-900 border border-slate-800 hover:border-emerald-500 hover:bg-slate-800 p-3 rounded-xl text-left transition group">
+          <p class="text-xs font-semibold text-slate-200 group-hover:text-emerald-400">🌲 Visual Calm</p>
+          <p class="text-[11px] text-slate-500 mt-0.5">Guided mental scenery</p>
+        </button>
+
+        <button onclick="triggerQuickAction('I am overwhelmed by university deadlines and terrified of failing. Help me reframe this thought calmly and constructively.')"
+          class="bg-slate-900 border border-slate-800 hover:border-emerald-500 hover:bg-slate-800 p-3 rounded-xl text-left transition group">
+          <p class="text-xs font-semibold text-slate-200 group-hover:text-emerald-400">🧠 Reframe Anxiety</p>
+          <p class="text-[11px] text-slate-500 mt-0.5">CBT perspective shift</p>
+        </button>
+      </div>
+    </section>
+
+    <!-- Generative AI Companion Interface -->
+    <section class="bg-slate-900/80 border border-slate-800 rounded-2xl p-4 flex flex-col gap-3">
+      <div id="chatBox" class="min-h-[140px] max-h-56 overflow-y-auto text-sm leading-relaxed text-slate-300 space-y-3 pr-2">
+        <p class="text-slate-500 italic">Select a Smart Action above or type what's on your mind below...</p>
+      </div>
+
+      <div class="flex gap-2 pt-2 border-t border-slate-800/80">
+        <input id="promptInput" type="text" placeholder="Tell me what you're feeling right now..." 
+          class="flex-1 bg-slate-950 border border-slate-700 rounded-xl px-4 py-2 text-sm focus:outline-none focus:border-emerald-400 transition"
+          onkeydown="if(event.key === 'Enter') handleUserInput()">
+        <button id="sendBtn" onclick="handleUserInput()" 
+          class="bg-emerald-500 hover:bg-emerald-400 text-slate-950 px-5 py-2 rounded-xl text-sm font-semibold transition flex items-center justify-center min-w-[70px]">
+          Send
+        </button>
+      </div>
+    </section>
+  </main>
+
+  <script>
+    // 1. CANVAS BREATHING ANIMATION
+    const canvas = document.getElementById('breathCanvas');
+    const ctx = canvas.getContext('2d');
+    const phaseText = document.getElementById('breathPhaseText');
+
+    let startTime = Date.now();
+    const cycleDuration = 8000;
+
+    function renderCanvas() {
+      const elapsed = (Date.now() - startTime) % cycleDuration;
+      const progress = elapsed / cycleDuration;
+      const oscillation = (Math.sin(progress * Math.PI * 2 - Math.PI / 2) + 1) / 2;
+
+      const centerX = canvas.width / 2;
+      const centerY = canvas.height / 2;
+      const minRadius = 35;
+      const maxRadius = 70;
+      const currentRadius = minRadius + (maxRadius - minRadius) * oscillation;
+
+      phaseText.textContent = oscillation > 0.5 ? 'Inhale slowly...' : 'Exhale gently...';
+
+      ctx.clearRect(0, 0, canvas.width, canvas.height);
+
+      ctx.beginPath();
+      ctx.arc(centerX, centerY, currentRadius * 1.25, 0, Math.PI * 2);
+      ctx.fillStyle = `rgba(16, 185, 129, ${0.08 * oscillation})`;
+      ctx.fill();
+
+      ctx.beginPath();
+      ctx.arc(centerX, centerY, currentRadius, 0, Math.PI * 2);
+      ctx.fillStyle = `rgba(16, 185, 129, ${0.25 + 0.25 * oscillation})`;
+      ctx.strokeStyle = '#34d399';
+      ctx.lineWidth = 2;
+      ctx.fill();
+      ctx.stroke();
+
+      ctx.beginPath();
+      ctx.arc(centerX, centerY, 6, 0, Math.PI * 2);
+      ctx.fillStyle = '#6ee7b7';
+      ctx.fill();
+
+      requestAnimationFrame(renderCanvas);
+    }
+    renderCanvas();
+
+    // 2. PROCEDURAL SOUND (Web Audio API)
+    let audioCtx = null;
+    let noiseNode = null;
+    let isPlayingAudio = false;
+
+    function toggleSoundscape() {
+      if (!audioCtx) {
+        audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+      }
+
+      if (isPlayingAudio) {
+        noiseNode.stop();
+        isPlayingAudio = false;
+        document.getElementById('audioIndicator').className = 'w-2 h-2 rounded-full bg-slate-500';
+        document.getElementById('audioLabel').textContent = 'Ambient Noise: OFF';
+      } else {
+        const bufferSize = audioCtx.sampleRate * 2;
+        const buffer = audioCtx.createBuffer(1, bufferSize, audioCtx.sampleRate);
+        const data = buffer.getChannelData(0);
+        let lastOut = 0.0;
+
+        for (let i = 0; i < bufferSize; i++) {
+          const white = Math.random() * 2 - 1;
+          data[i] = (lastOut + 0.02 * white) / 1.02;
+          lastOut = data[i];
+          data[i] *= 3.5;
+        }
+
+        noiseNode = audioCtx.createBufferSource();
+        noiseNode.buffer = buffer;
+        noiseNode.loop = true;
+
+        const filter = audioCtx.createBiquadFilter();
+        filter.type = 'lowpass';
+        filter.frequency.value = 400;
+
+        const gainNode = audioCtx.createGain();
+        gainNode.gain.value = 0.15;
+
+        noiseNode.connect(filter);
+        filter.connect(gainNode);
+        gainNode.connect(audioCtx.destination);
+
+        noiseNode.start();
+        isPlayingAudio = true;
+        document.getElementById('audioIndicator').className = 'w-2 h-2 rounded-full bg-emerald-400 animate-pulse';
+        document.getElementById('audioLabel').textContent = 'Ambient Noise: ACTIVE';
+      }
+    }
+
+    // 3. GENERATIVE AI CHAT & SMART BUTTONS
+    const chatBox = document.getElementById('chatBox');
+    const promptInput = document.getElementById('promptInput');
+    const sendBtn = document.getElementById('sendBtn');
+
+    async function submitToAI(text) {
+      chatBox.innerHTML = `
+        <div class="flex items-center gap-2 text-emerald-400 text-sm animate-pulse">
+          <svg class="animate-spin h-4 w-4" viewBox="0 0 24 24" fill="none">
+            <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle>
+            <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8v8H4z"></path>
+          </svg>
+          <span>GroundedMind is generating guidance...</span>
+        </div>`;
+      sendBtn.disabled = true;
+
+      try {
+        const response = await fetch('/api/chat', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ prompt: text })
+        });
+        const data = await response.json();
+
+        if (data.error) {
+          chatBox.innerHTML = `<div class="text-rose-400 text-xs">Error: ${data.error}</div>`;
+        } else {
+          chatBox.innerHTML = `
+            <div class="bg-slate-950/60 p-3 rounded-xl border border-slate-800 text-slate-200 text-xs sm:text-sm whitespace-pre-line leading-relaxed">
+              ${data.reply}
+            </div>`;
+        }
+      } catch (err) {
+        chatBox.innerHTML = `<div class="text-rose-400 text-xs">Failed to reach local server. Make sure it's running.</div>`;
+      } finally {
+        sendBtn.disabled = false;
+      }
+    }
+
+    function triggerQuickAction(actionPrompt) {
+      submitToAI(actionPrompt);
+    }
+
+    function handleUserInput() {
+      const text = promptInput.value.trim();
+      if (!text) return;
+      promptInput.value = '';
+      submitToAI(text);
+    }
+  </script>
+</body>
+</html>
