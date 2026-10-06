@@ -12,38 +12,11 @@ const __dirname = path.dirname(__filename);
 const app = express();
 app.use(cors());
 app.use(express.json());
+
+// Serves all web files inside the public folder
 app.use(express.static(path.join(__dirname, 'public')));
 
 const API_KEY = process.env.GEMINI_API_KEY;
-
-// Automatically finds which Gemini model is active for your account
-async function getActiveModel() {
-  try {
-    const res = await fetch(`https://generativelanguage.googleapis.com/v1beta/models?key=${API_KEY}`);
-    const data = await res.json();
-
-    if (data.error) {
-      console.error('Google Key Notice:', data.error.message);
-      return null;
-    }
-
-    if (data.models && data.models.length > 0) {
-      // Find models that can generate text
-      const usableModels = data.models
-        .filter(m => m.supportedGenerationMethods?.includes('generateContent'))
-        .map(m => m.name.replace('models/', ''));
-
-      // Prefer a fast "flash" model, otherwise take the first usable one
-      const chosen = usableModels.find(name => name.includes('flash')) || usableModels[0];
-      return chosen;
-    }
-  } catch (err) {
-    console.error('Could not connect to Google model directory:', err.message);
-  }
-  return 'gemini-1.5-flash';
-}
-
-let currentModel = null;
 
 app.post('/api/chat', async (req, res) => {
   const { prompt } = req.body;
@@ -57,19 +30,15 @@ app.post('/api/chat', async (req, res) => {
   }
 
   try {
-    if (!currentModel) {
-      currentModel = await getActiveModel();
-    }
-
     const response = await fetch(
-      `https://generativelanguage.googleapis.com/v1beta/models/${currentModel}:generateContent?key=${API_KEY}`,
+      `https://generativelanguage.googleapis.com/v1beta/models/gemini-3.8-flash:generateContent?key=${API_KEY}`,
       {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           system_instruction: {
             parts: [{
-              text: "You are GroundedMind, an empathetic, non-clinical grounding companion for stressed university students. Keep guidance actionable, gentle, and concise (under 90 words). Use bullet points where appropriate."
+              text: "You are GroundedMind, an empathetic, non-clinical grounding companion for university students dealing with stress. Keep guidance gentle, practical, concise (under 90 words), and use bullet points where helpful."
             }]
           },
           contents: [{ parts: [{ text: prompt }] }]
@@ -83,7 +52,7 @@ app.post('/api/chat', async (req, res) => {
       return res.status(500).json({ error: data.error.message });
     }
 
-    const reply = data.candidates?.[0]?.content?.parts?.[0]?.text || "Take a slow breath. I am right here with you.";
+    const reply = data.candidates?.[0]?.content?.parts?.[0]?.text || "Take a slow, deep breath. I am right here with you.";
     res.json({ reply });
   } catch (err) {
     res.status(500).json({ error: 'Server could not reach Google AI services.' });
@@ -91,12 +60,6 @@ app.post('/api/chat', async (req, res) => {
 });
 
 const PORT = process.env.PORT || 3000;
-app.listen(PORT, async () => {
+app.listen(PORT, () => {
   console.log(`GroundedMind is running at: http://localhost:${PORT}`);
-  currentModel = await getActiveModel();
-  if (currentModel) {
-    console.log(`Connected to Google AI successfully! Using model: ${currentModel}`);
-  } else {
-    console.log('Could not identify a model. Check your API key in .env');
-  }
 });
