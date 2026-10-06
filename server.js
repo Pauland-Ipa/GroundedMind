@@ -2,18 +2,18 @@
 // GROUNDEDMIND BACKEND SERVER (Node.js + Express)
 // ============================================================================
 
-// 1. IMPORTING LIBRARIES (Helper packages installed via npm)
-import express from 'express';     // Web framework to create local servers and API endpoints
-import cors from 'cors';           // Security helper allowing your browser to talk to this server
+// 1. IMPORTING LIBRARIES (Pre-built tools installed via npm)
+import express from 'express';     // Web framework to create local servers and API routes
+import cors from 'cors';           // Security middleware allowing your browser to talk to this server
 import dotenv from 'dotenv';       // Reads secret keys from your hidden .env file
-import path from 'path';           // Node.js helper to navigate computer folder paths
+import path from 'path';           // Node.js helper to navigate folder paths on your computer
 import { fileURLToPath } from 'url'; // Converts file URLs to standard computer directory paths
 
-// Load variables from the .env file into Node.js (process.env)
+// Load variables from the .env file into Node.js (accessible via process.env)
 dotenv.config();
 
-// In modern ES Modules (type: "module"), __dirname is not built-in.
-// These two lines recreate __dirname so we know the exact current folder path.
+// In modern ES Modules (type: "module"), __dirname is not included by default.
+// These two lines recreate __dirname so the server knows which folder it is running from.
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
 
@@ -21,108 +21,94 @@ const __dirname = path.dirname(__filename);
 const app = express();
 
 // ============================================================================
-// 2. MIDDLEWARE (Functions that process incoming requests before handling them)
+// 2. MIDDLEWARE (Configuring how the server receives and serves data)
 // ============================================================================
 
-// Allow Cross-Origin requests (lets index.html make requests to this backend)
+// Allow Cross-Origin requests (lets index.html communicate with this server)
 app.use(cors());
 
-// Enable Express to automatically parse incoming JSON data from frontend requests
+// Enable Express to parse incoming JSON data sent in request bodies
 app.use(express.json());
 
 // Serve static frontend files:
-// Anything placed inside the "public" folder (like index.html, css, js) 
-// will be accessible directly in the browser at http://localhost:3000/
+// Makes everything inside the "public" folder (HTML, CSS, JS) visible in the browser
 app.use(express.static(path.join(__dirname, 'public')));
 
-// Fetch the secret API key stored in .env
+// Retrieve your private API key from the .env file
 const API_KEY = process.env.GEMINI_API_KEY;
 
-// List of Gemini model versions to try.
-// If the primary model is busy or overloaded, the server automatically tries the next one.
-const MODELS_TO_TRY = [
-  'gemini-2.0-flash',
-  'gemini-1.5-flash',
-  'gemini-2.5-flash'
-];
-
 // ============================================================================
-// 3. API ROUTES (Endpoints where the frontend sends and receives data)
+// 3. API ROUTE (Endpoint that receives prompts and sends them to Google Gemini)
 // ============================================================================
 
 // This POST route listens for requests sent to: http://localhost:3000/api/chat
 app.post('/api/chat', async (req, res) => {
-  // Extract the "prompt" text sent from the browser
+  // Extract the user's message ("prompt") from the request body
   const { prompt } = req.body;
 
-  // Validation: Check if the user sent empty text
+  // Validation: Check if the user sent an empty message
   if (!prompt) {
     return res.status(400).json({ error: 'Prompt is required.' });
   }
 
   // Validation: Ensure the API key actually exists in .env
   if (!API_KEY) {
-    return res.status(500).json({ error: 'GEMINI_API_KEY is missing from your .env file.' });
+    console.error('Error: GEMINI_API_KEY is not defined in your .env file.');
+    return res.status(500).json({ error: 'GEMINI_API_KEY is missing from .env' });
   }
 
-  let lastErrorMessage = '';
+  try {
+    // Direct endpoint targeting gemini-3.8-flash
+    const url = `https://generativelanguage.googleapis.com/v1beta/models/gemini-3.8-flash:generateContent?key=${API_KEY}`;
+    
+    // Send the prompt directly to Google's Gemini API
+    const response = await fetch(url, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        // System instructions set the tone, boundaries, and persona of the companion
+        system_instruction: {
+          parts: [{
+            text: "You are GroundedMind, an empathetic, non-clinical grounding companion for university students dealing with stress. Keep guidance gentle, practical, concise (under 90 words), and use bullet points where helpful."
+          }]
+        },
+        // The actual prompt entered by the user or triggered by a button
+        contents: [{ parts: [{ text: prompt }] }]
+      })
+    });
 
-  // Loop through our list of models until one answers successfully
-  for (const model of MODELS_TO_TRY) {
-    try {
-      // The official Google API URL for text generation
-      const url = `https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent?key=${API_KEY}`;
-      
-      // Make the secure network request directly to Google's servers
-      const response = await fetch(url, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          // System instructions define the AI's persona, tone, and safety rules
-          system_instruction: {
-            parts: [{
-              text: "You are GroundedMind, an empathetic, non-clinical grounding companion for university students dealing with stress. Keep guidance gentle, practical, concise (under 90 words), and use bullet points where helpful."
-            }]
-          },
-          // The actual message or prompt sent by the student
-          contents: [{ parts: [{ text: prompt }] }]
-        })
+    // Parse the JSON response received from Google
+    const data = await response.json();
+
+    // Check if Google returned an error status or error object
+    if (!response.ok || data.error) {
+      console.error('Google API Error Response:', data.error || data);
+      return res.status(response.status || 500).json({ 
+        error: data.error?.message || 'Google API returned an error.' 
       });
-
-      // Parse Google's response into a JavaScript object
-      const data = await response.json();
-
-      // Check if Google succeeded and returned generated text
-      if (response.ok && data.candidates?.[0]?.content?.parts?.[0]?.text) {
-        const aiReply = data.candidates[0].content.parts[0].text;
-        
-        // Send the AI's response text back to the browser
-        return res.json({ reply: aiReply });
-      }
-
-      // If Google returned an error (e.g., high server demand), record it and try the backup
-      lastErrorMessage = data.error?.message || 'Model temporarily unavailable.';
-      console.warn(`Model ${model} was unavailable: ${lastErrorMessage}. Trying next backup...`);
-
-    } catch (err) {
-      // Catch network-level connection failures (e.g., dropped Wi-Fi)
-      lastErrorMessage = err.message;
-      console.warn(`Network failure connecting to ${model}: ${err.message}. Trying next backup...`);
     }
-  }
 
-  // If every model in the loop failed, send an error response to the frontend
-  res.status(503).json({ error: `All models are currently busy. Details: ${lastErrorMessage}` });
+    // Extract the generated text reply safely
+    const reply = data.candidates?.[0]?.content?.parts?.[0]?.text || "Take a slow, deep breath. I am right here with you.";
+    
+    // Send the AI's reply back to the browser
+    res.json({ reply });
+
+  } catch (err) {
+    // Catches network-level disconnections (e.g., lost internet connection)
+    console.error('Backend Fetch Error:', err);
+    res.status(500).json({ error: `Connection failed: ${err.message}` });
+  }
 });
 
 // ============================================================================
 // 4. START THE SERVER
 // ============================================================================
 
-// Use the port defined in .env, or default to 3000
+// Use the PORT defined in .env, or fall back to port 3000
 const PORT = process.env.PORT || 3000;
 
-// Tell Express to start listening for incoming connections
+// Start listening for incoming browser requests
 app.listen(PORT, () => {
   console.log(`GroundedMind is running at: http://localhost:${PORT}`);
 });
